@@ -70,6 +70,16 @@ jobs:
           curl -sS -O https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-latest.zip
           unzip -q sqlcl-latest.zip -d $HOME/sqlcl
           echo "$HOME/sqlcl/sqlcl/bin" >> $GITHUB_PATH
+      
+      - name: Inspect wallet files
+        run: |
+          echo "Wallet directory contents:"
+          ls -R wallet || echo "wallet directory missing"
+
+      - name: Check wallet.zip
+        run: |
+          echo "Wallet zip size:"
+          ls -l wallet.zi
 
       - name: Run PL/SQL scripts
         env:
