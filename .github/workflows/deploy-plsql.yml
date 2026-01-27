@@ -1,0 +1,75 @@
+name: Deploy PL/SQL to OCI Autonomous DB
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # -------------------------------------------------------
+    # Configure OCI CLI using API Keys
+    # -------------------------------------------------------
+    - name: Configure OCI CLI
+      run: |
+        mkdir -p ~/.oci
+        echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+
+        cat > ~/.oci/config <<EOF
+        [DEFAULT]
+        user=${{ secrets.OCI_USER_OCID }}
+        fingerprint=${{ secrets.OCI_FINGERPRINT }}
+        key_file=~/.oci/oci_api_key.pem
+        tenancy=${{ secrets.OCI_TENANCY_OCID }}
+        region=${{ secrets.OCI_REGION }}
+        EOF
+
+        oci --version
+
+    # -------------------------------------------------------
+    # Download Wallet
+    # -------------------------------------------------------
+    - name: Download Autonomous DB Wallet
+      env:
+        ATP_OCID: ${{ secrets.ATP_OCID }}
+        WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
+      run: |
+        oci db autonomous-database generate-wallet \
+          --autonomous-database-id "$ATP_OCID" \
+          --password "$WALLET_PASSWORD" \
+          --file wallet.zip
+        unzip -o wallet.zip -d wallet
+
+    # -------------------------------------------------------
+    # Install SQLcl
+    # -------------------------------------------------------
+    - name: Install SQLcl
+      run: |
+        curl -sS -O https://download.oracle.com/otn_software/sqlcl/sqlcl-latest.zip
+        unzip -q sqlcl-latest.zip -d $HOME/sqlcl
+        echo "$HOME/sqlcl/sqlcl/bin" >> $GITHUB_PATH
+
+    # -------------------------------------------------------
+    # Run PL/SQL Deployment Scripts
+    # -------------------------------------------------------
+    - name: Run PL/SQL scripts
+      env:
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_SERVICE: ${{ secrets.DB_SERVICE }}
+      run: |
+        sql /nolog <<EOF
+        SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
+        CONNECT admin/${DB_PASSWORD}@wallet/${DB_SERVICE}
+
+        @deploy/01_schema.sql
+        @deploy/02_packages.sql
+        @deploy/03_grants.sql
+
+        EXIT
+        EOF
