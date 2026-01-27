@@ -79,7 +79,7 @@ jobs:
       - name: Check wallet.zip
         run: |
           echo "Wallet zip size:"
-          ls -l wallet.zi
+          ls -l wallet.zip
 
       - name: Run PL/SQL scripts
         env:
