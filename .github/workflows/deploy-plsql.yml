@@ -43,8 +43,9 @@ jobs:
             --password "$WALLET_PASSWORD"
             --file wallet.zip
             --debug
+          silent: false
           # set silent: false temporarily if you need to debug errors
-           silent: false
+          #silent: false
 
       - name: Unzip wallet
         run: unzip -o wallet.zip -d wallet
