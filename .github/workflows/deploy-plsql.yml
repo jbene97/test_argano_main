@@ -42,6 +42,7 @@ jobs:
             --autonomous-database-id "$ATP_OCID"
             --password "$WALLET_PASSWORD"
             --file wallet.zip
+            --debug
           # set silent: false temporarily if you need to debug errors
           # silent: false
 
