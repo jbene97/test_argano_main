@@ -13,9 +13,9 @@ jobs:
       uses: actions/checkout@v4
 
     # -------------------------------------------------------
-    # Configure OCI CLI using API Keys
+    # Configure OCI CLI credentials (API Keys)
     # -------------------------------------------------------
-    - name: Configure OCI CLI
+    - name: Write OCI config and private key
       run: |
         mkdir -p ~/.oci
         echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
@@ -25,25 +25,36 @@ jobs:
         [DEFAULT]
         user=${{ secrets.OCI_USER_OCID }}
         fingerprint=${{ secrets.OCI_FINGERPRINT }}
-        key_file=~/.oci/oci_api_key.pem
+        key_file=${HOME}/.oci/oci_api_key.pem
         tenancy=${{ secrets.OCI_TENANCY_OCID }}
         region=${{ secrets.OCI_REGION }}
         EOF
+        chmod 600 ~/.oci/config
 
-        oci --version
+    # ---------- This step installs the OCI CLI automatically ----------
+    - name: Verify connectivity with OCI (auto-installs CLI)
+      uses: oracle-actions/run-oci-cli-command@v1
+      with:
+        command: |
+          oci iam region-subscription list
 
     # -------------------------------------------------------
-    # Download Wallet
+    # Download Autonomous DB Wallet
     # -------------------------------------------------------
     - name: Download Autonomous DB Wallet
+      uses: oracle-actions/run-oci-cli-command@v1
       env:
         ATP_OCID: ${{ secrets.ATP_OCID }}
         WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
+      with:
+        command: |
+          oci db autonomous-database generate-wallet \
+            --autonomous-database-id "$ATP_OCID" \
+            --password "$WALLET_PASSWORD" \
+            --file wallet.zip
+      # Unzip using a standard shell step
+    - name: Unzip wallet
       run: |
-        oci db autonomous-database generate-wallet \
-          --autonomous-database-id "$ATP_OCID" \
-          --password "$WALLET_PASSWORD" \
-          --file wallet.zip
         unzip -o wallet.zip -d wallet
 
     # -------------------------------------------------------
@@ -63,13 +74,11 @@ jobs:
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         DB_SERVICE: ${{ secrets.DB_SERVICE }}
       run: |
-        sql /nolog <<EOF
+        sql /nolog <<'EOF'
         SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
         CONNECT admin/${DB_PASSWORD}@wallet/${DB_SERVICE}
-
         @deploy/01_schema.sql
         @deploy/02_packages.sql
         @deploy/03_grants.sql
-
         EXIT
         EOF
