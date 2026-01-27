@@ -78,6 +78,9 @@ jobs:
         run: |
           sql /nolog <<'EOF'
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
+          SET CLOUDCONFIG wallet
+          SHOW TNS
+          SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           CONNECT GITWORKFLOWTEST/${DB_PASSWORD}@wallet/${DB_SERVICE}
           EXIT
           EOF
