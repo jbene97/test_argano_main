@@ -8,15 +8,25 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    # Auth env for Oracle's action (as documented in the repo)
+env:
+  OCI_CLI_USER:        ${{ secrets.OCI_USER_OCID }}
+  OCI_CLI_TENANCY:     ${{ secrets.OCI_TENANCY_OCID }}
+  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}   # full PEM with headers/footers
+  OCI_CLI_REGION:      ${{ secrets.OCI_REGION }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # Make ADB-specific values available as env so we can embed them with ${{ env.* }}
     env:
-      OCI_CLI_USER:        ${{ secrets.OCI_USER_OCID }}
-      OCI_CLI_TENANCY:     ${{ secrets.OCI_TENANCY_OCID }}
-      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}   # full PEM content
-      OCI_CLI_REGION:      ${{ secrets.OCI_REGION }}
+      ATP_OCID:        ${{ secrets.ATP_OCID }}
+      WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Show OCI CLI version
@@ -31,21 +41,29 @@ jobs:
           command: oci os ns get
           silent: false
 
+      #Use ${{ env.ATP_OCID }} and ${{ env.WALLET_PASSWORD }} so the values are injected
+      - name: Show ADB details (sanity check)
+        uses: oracle-actions/run-oci-cli-command@v1.3.2
+        with:
+          command: >
+            oci db autonomous-database get
+            --autonomous-database-id ${{ env.ATP_OCID }}
+            --region ${{ env.OCI_CLI_REGION }}
+            --debug
+          silent: false
+
       - name: Download Autonomous DB Wallet
         uses: oracle-actions/run-oci-cli-command@v1.3.2
-        env:
-          ATP_OCID: ${{ secrets.ATP_OCID }}
-          WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
         with:
           command: >
             oci db autonomous-database generate-wallet
-            --autonomous-database-id "$ATP_OCID"
-            --password "$WALLET_PASSWORD"
+            --autonomous-database-id ${{ env.ATP_OCID }}
+            --password '${{ env.WALLET_PASSWORD }}'
             --file wallet.zip
+            --generate-type SINGLE
+            --region ${{ env.OCI_CLI_REGION }}
             --debug
           silent: false
-          # set silent: false temporarily if you need to debug errors
-          #silent: false
 
       - name: Unzip wallet
         run: unzip -o wallet.zip -d wallet
@@ -67,5 +85,7 @@ jobs:
           @deploy/01_schema.sql
           @deploy/02_packages.sql
           @deploy/03_grants.sql
+          EXIT
+          EOF
           EXIT
           EOF
