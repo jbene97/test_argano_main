@@ -8,77 +8,59 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    # These env vars are required by oracle-actions/run-oci-cli-command
+    env:
+      OCI_CLI_USER:        ${{ secrets.OCI_USER_OCID }}
+      OCI_CLI_TENANCY:     ${{ secrets.OCI_TENANCY_OCID }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}   # full PEM content
+      OCI_CLI_REGION:      ${{ secrets.OCI_REGION }}
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    # -------------------------------------------------------
-    # Configure OCI CLI credentials (API Keys)
-    # -------------------------------------------------------
-    - name: Write OCI config and private key
-      run: |
-        mkdir -p ~/.oci
-        echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
-        chmod 600 ~/.oci/oci_api_key.pem
+      # This step both installs the OCI CLI and runs the command.
+      - name: Verify OCI CLI works
+        uses: oracle-actions/run-oci-cli-command@v1.3.2
+        with:
+          command: |
+            oci iam region-subscription list
 
-        cat > ~/.oci/config <<EOF
-        [DEFAULT]
-        user=${{ secrets.OCI_USER_OCID }}
-        fingerprint=${{ secrets.OCI_FINGERPRINT }}
-        key_file=${HOME}/.oci/oci_api_key.pem
-        tenancy=${{ secrets.OCI_TENANCY_OCID }}
-        region=${{ secrets.OCI_REGION }}
-        EOF
-        chmod 600 ~/.oci/config
+      # --- Download ADB Wallet ---
+      - name: Download Autonomous DB Wallet
+        uses: oracle-actions/run-oci-cli-command@v1.3.2
+        env:
+          ATP_OCID: ${{ secrets.ATP_OCID }}
+          WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
+        with:
+          command: |
+            oci db autonomous-database generate-wallet \
+              --autonomous-database-id "$ATP_OCID" \
+              --password "$WALLET_PASSWORD" \
+              --file wallet.zip
 
-    # ---------- This step installs the OCI CLI automatically ----------
-    - name: Verify connectivity with OCI (auto-installs CLI)
-      uses: oracle-actions/run-oci-cli-command@v1
-      with:
-        command: |
-          oci iam region-subscription list
+      - name: Unzip wallet
+        run: unzip -o wallet.zip -d wallet
 
-    # -------------------------------------------------------
-    # Download Autonomous DB Wallet
-    # -------------------------------------------------------
-    - name: Download Autonomous DB Wallet
-      uses: oracle-actions/run-oci-cli-command@v1
-      env:
-        ATP_OCID: ${{ secrets.ATP_OCID }}
-        WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
-      with:
-        command: |
-          oci db autonomous-database generate-wallet \
-            --autonomous-database-id "$ATP_OCID" \
-            --password "$WALLET_PASSWORD" \
-            --file wallet.zip
-      # Unzip using a standard shell step
-    - name: Unzip wallet
-      run: |
-        unzip -o wallet.zip -d wallet
+      # --- Install SQLcl ---
+      - name: Install SQLcl
+        run: |
+          curl -sS -O https://download.oracle.com/otn_software/sqlcl/sqlcl-latest.zip
+          unzip -q sqlcl-latest.zip -d $HOME/sqlcl
+          echo "$HOME/sqlcl/sqlcl/bin" >> $GITHUB_PATH
 
-    # -------------------------------------------------------
-    # Install SQLcl
-    # -------------------------------------------------------
-    - name: Install SQLcl
-      run: |
-        curl -sS -O https://download.oracle.com/otn_software/sqlcl/sqlcl-latest.zip
-        unzip -q sqlcl-latest.zip -d $HOME/sqlcl
-        echo "$HOME/sqlcl/sqlcl/bin" >> $GITHUB_PATH
-
-    # -------------------------------------------------------
-    # Run PL/SQL Deployment Scripts
-    # -------------------------------------------------------
-    - name: Run PL/SQL scripts
-      env:
-        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        DB_SERVICE: ${{ secrets.DB_SERVICE }}
-      run: |
-        sql /nolog <<'EOF'
-        SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
-        CONNECT admin/${DB_PASSWORD}@wallet/${DB_SERVICE}
-        @deploy/01_schema.sql
-        @deploy/02_packages.sql
-        @deploy/03_grants.sql
-        EXIT
-        EOF
+      # --- Run PL/SQL scripts ---
+      - name: Run PL/SQL scripts
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_SERVICE:  ${{ secrets.DB_SERVICE }}
+        run: |
+          sql /nolog <<'EOF'
+          SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
+          CONNECT admin/${DB_PASSWORD}@wallet/${DB_SERVICE}
+          @deploy/01_schema.sql
+          @deploy/02_packages.sql
+          @deploy/03_grants.sql
+          EXIT
+          EOF
