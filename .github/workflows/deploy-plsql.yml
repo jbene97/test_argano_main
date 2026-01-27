@@ -9,24 +9,26 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Required by oracle-actions/run-oci-cli-command
       OCI_CLI_USER:        ${{ secrets.OCI_USER_OCID }}
       OCI_CLI_TENANCY:     ${{ secrets.OCI_TENANCY_OCID }}
       OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}   # full PEM
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}   # full PEM content
       OCI_CLI_REGION:      ${{ secrets.OCI_REGION }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Safer smoke test; shows full error if any
-      - name: Verify OCI CLI works
+      - name: Show OCI CLI version
         uses: oracle-actions/run-oci-cli-command@v1.3.2
         with:
-          command: |
-            oci --version
-            oci os ns get
+          command: oci --version
+          silent: false
+
+      - name: Verify auth (Object Storage namespace)
+        uses: oracle-actions/run-oci-cli-command@v1.3.2
+        with:
+          command: oci os ns get
           silent: false
 
       - name: Download Autonomous DB Wallet
@@ -35,12 +37,12 @@ jobs:
           ATP_OCID: ${{ secrets.ATP_OCID }}
           WALLET_PASSWORD: ${{ secrets.WALLET_PASSWORD }}
         with:
-          command: |
-            oci db autonomous-database generate-wallet \
-              --autonomous-database-id "$ATP_OCID" \
-              --password "$WALLET_PASSWORD" \
-              --file wallet.zip
-          # set silent: false temporarily if you need full error logs
+          command: >
+            oci db autonomous-database generate-wallet
+            --autonomous-database-id "$ATP_OCID"
+            --password "$WALLET_PASSWORD"
+            --file wallet.zip
+          # set silent: false temporarily if you need to debug errors
           # silent: false
 
       - name: Unzip wallet
