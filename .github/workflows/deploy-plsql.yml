@@ -78,7 +78,7 @@ jobs:
         run: |
           sql /nolog <<'EOF'
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
-          CONNECT admin/${DB_PASSWORD}@wallet/${DB_SERVICE}
+          CONNECT GITWORKFLOWTEST/${DB_PASSWORD}@wallet/${DB_SERVICE}
           EXIT
           EOF
           EXIT
