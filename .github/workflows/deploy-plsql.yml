@@ -66,7 +66,8 @@ jobs:
 
       - name: Install SQLcl
         run: |
-          curl -sS -O https://download.oracle.com/otn_software/sqlcl/sqlcl-latest.zip
+          set -e
+          curl -sS -O https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-latest.zip
           unzip -q sqlcl-latest.zip -d $HOME/sqlcl
           echo "$HOME/sqlcl/sqlcl/bin" >> $GITHUB_PATH
 
@@ -78,9 +79,6 @@ jobs:
           sql /nolog <<'EOF'
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           CONNECT admin/${DB_PASSWORD}@wallet/${DB_SERVICE}
-          @deploy/01_schema.sql
-          @deploy/02_packages.sql
-          @deploy/03_grants.sql
           EXIT
           EOF
           EXIT
