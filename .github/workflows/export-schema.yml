@@ -73,7 +73,7 @@ jobs:
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_SERVICE:  ${{ secrets.DB_SERVICE }}   # e.g., apxedev_tp
-          EXPORT_SCHEMA: WS_PENSION_CALC
+          EXPORT_SCHEMA: WKSP_PENSIONCALC
         run: |
           set -e
           JS_FILE="$GITHUB_WORKSPACE/tools/export_schema.js"
