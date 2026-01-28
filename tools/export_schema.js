@@ -15,6 +15,21 @@ var StandardOpenOption = java.nio.file.StandardOpenOption;
 
 function up(s){ return (s || "").toUpperCase(); }
 
+// Safe output reader: support multiple SQLcl/Graal/Nashorn variants
+function readOutput() {
+  try {
+    if (typeof ctx !== 'undefined' && typeof ctx.getOutput === 'function') return String(ctx.getOutput());
+    if (typeof ctx !== 'undefined' && ctx.getOutput != null) return String(ctx.getOutput);
+    if (typeof ctx !== 'undefined' && typeof ctx.getStdout === 'function') return String(ctx.getStdout());
+    if (typeof sqlcl !== 'undefined' && typeof sqlcl.getOutput === 'function') return String(sqlcl.getOutput());
+    if (typeof GetOutput === 'function') return String(GetOutput());
+    if (typeof getOutput === 'function') return String(getOutput());
+  } catch (e) {
+    // ignore and return empty
+  }
+  return "";
+}
+
 // ----------------------------------------------------------------------------
 // Resolve target schema (env var or fallback to connected user via SELECT USER)
 // ----------------------------------------------------------------------------
@@ -23,7 +38,7 @@ if (!TARGET || TARGET.trim() === "") {
   // Fallback: read current user using SQLcl output
   sqlcl.setStmt("select user from dual");
   sqlcl.run();
-  var out = String(ctx.getOutput()).trim();
+  var out = String(readOutput()).trim();
   TARGET = up(out.split(/\s+/).pop()); // last token is the USER
 }
 ctx.write("Exporting schema: " + TARGET + "\n");
@@ -70,7 +85,7 @@ var MAP = {
 // ----------------------------------------------------------------------------
 sqlcl.setStmt("select user from dual");
 sqlcl.run();
-var CURRENT = up(String(ctx.getOutput()).trim().split(/\s+/).pop());
+var CURRENT = up(String(readOutput()).trim().split(/\s+/).pop());
 
 // ----------------------------------------------------------------------------
 // Build list of objects via SQL and capture the rows using SQLcl output
@@ -97,7 +112,7 @@ if (CURRENT === TARGET) {
 
 sqlcl.setStmt(listSql);
 sqlcl.run();
-var lines = String(ctx.getOutput()).trim().split(/\r?\n/);
+var lines = String(readOutput()).trim().split(/\r?\n/);
 
 // Ensure root
 Files.createDirectories(Paths.get(ROOT));
