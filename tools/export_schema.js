@@ -175,7 +175,29 @@ lines.forEach(function(line) {
   sqlcl.setStmt(cmd);
   sqlcl.run();
 
-  count++;
+  // Verify the file was written; if not, retry without the type (some DB objects
+  // may need the type omitted). Only increment count when a non-empty file exists.
+  var saved = false;
+  try {
+    var p = Paths.get(absFile);
+    if (Files.exists(p) && Files.size(p) > 0) saved = true;
+  } catch (e) {}
+
+  if (!saved) {
+    var cmd2 = 'ddl ' + objRef + ' save "' + absFile + '"';
+    sqlcl.setStmt(cmd2);
+    sqlcl.run();
+    try {
+      var p2 = Paths.get(absFile);
+      if (Files.exists(p2) && Files.size(p2) > 0) saved = true;
+    } catch (e) {}
+  }
+
+  if (!saved) {
+    ctx.write("Warning: DDL save failed for " + objRef + " (" + ot + ") -> " + absFile + "\n");
+  } else {
+    count++;
+  }
 });
 ctx.write("Export complete: " + TARGET + " → " + ROOT + " (" + count + " objects)\n");
 // (CSV-driven export already completed above)
