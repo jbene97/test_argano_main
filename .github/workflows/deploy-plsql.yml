@@ -85,11 +85,12 @@ jobs:
           echo "TNS aliases found:"
           grep -E '^[A-Za-z0-9_-]+\s*=' "$TNS_ADMIN/tnsnames.ora" | awk -F= '{print $1}' | tr -d ' '
 
-          # Run SQLcl and let the shell expand env variables (note: no quotes around EOF)
+          # Run SQLcl and let the shell expand env variables (notgt e: no quotes around EOF)
           sql /nolog <<EOF
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           WHENEVER SQLERROR EXIT SQL.SQLCODE
           CONNECT GITWORKFLOWTEST/"$DB_PASSWORD"@$DB_SERVICE
+          @testscript.sql
           EXIT
           EOF
           ``
