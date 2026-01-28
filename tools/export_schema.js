@@ -160,43 +160,4 @@ lines.forEach(function(line) {
   count++;
 });
 ctx.write("Export complete: " + TARGET + " → " + ROOT + " (" + count + " objects)\n");
-
-// Ensure root
-Files.createDirectories(Paths.get(ROOT));
-
-var count = 0;
-
-// ----------------------------------------------------------------------------
-// For each object, call SQLcl DDL with SAVE to write directly to disk.
-// ----------------------------------------------------------------------------
-lines.forEach(function(row) {
-  row = row.trim();
-  if (!row || row.indexOf('|') < 0) return;
-
-  var parts = row.split('|');
-  var ot = up(parts[0].trim());
-  var on = parts[1].trim();
-
-  if (!MAP[ot]) return;
-
-  var dir = ROOT + "/" + MAP[ot].folder;
-  var file = dir + "/" + on + MAP[ot].ext;
-
-  // create folder(s)
-  Files.createDirectories(Paths.get(dir));
-
-  // Build fully-qualified object reference when CURRENT != TARGET
-  var objRef = (CURRENT === TARGET) ? on : (TARGET + "." + on);
-
-  // Use SQLcl DDL to write DDL to file
-  // Syntax: DDL <object> <type> SAVE <file>
-  // (Type is optional, but passing it makes SQLcl explicit.)
-  var cmd = "ddl " + objRef + " " + ot + " save " + file;
-  sqlcl.setStmt(cmd);
-  sqlcl.run();
-
-  count++;
-});
-
-// Done
-ctx.write("Export complete: " + TARGET + " → " + ROOT + " (" + count + " objects)\n");
+// (CSV-driven export already completed above)
