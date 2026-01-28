@@ -87,11 +87,19 @@ lines.forEach(function(line){
   var status = stripQuotes(parts[2].trim()).toUpperCase();
   if (!MAP[ot]) return;
 
+  // Skip obvious system-generated / internal names to avoid failures and noise
+  if (/^(SYS_|ISEQ\$\$|BIN\$)/.test(on) || on.indexOf('SYS_IL') === 0 || on.indexOf('$$') !== -1) {
+    ctx.write('Skipping internal/system object: ' + on + '\n');
+    return;
+  }
+
   var dirRel = ROOT + '/' + MAP[ot].folder;
   var absDir = WORK + '/' + dirRel;
   Files.createDirectories(Paths.get(absDir));
 
-  var absFile = WORK + '/' + dirRel + '/' + on + MAP[ot].ext;
+  // sanitize filename to avoid SQLcl/SP2 spool issues (e.g. $$) and shell problems
+  var safeName = on.replace(/[^A-Za-z0-9_.-]/g, '_');
+  var absFile = WORK + '/' + dirRel + '/' + safeName + MAP[ot].ext;
 
   // spool a PL/SQL block that safely attempts GET_DDL and falls back to ALL_SOURCE
   var spoolOn = 'spool "' + absFile + '"';
@@ -126,7 +134,7 @@ lines.forEach(function(line){
   plsql += "  END;\n";
   plsql += "END;\n/";
 
-  ctx.write('Spooling DDL for ' + TARGET + '.' + on + ' to ' + absFile + '\n');
+  ctx.write('Spooling DDL for ' + TARGET + '.' + on + ' -> ' + absFile + '\n');
   sqlcl.setStmt(spoolOn); sqlcl.run();
   sqlcl.setStmt(plsql); sqlcl.run();
   sqlcl.setStmt(spoolOff); sqlcl.run();
