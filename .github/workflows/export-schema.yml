@@ -73,9 +73,10 @@ jobs:
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_SERVICE:  ${{ secrets.DB_SERVICE }}   # e.g., apxedev_tp
+          EXPORT_SCHEMA: WS_PENSION_CALC
         run: |
           set -e
-
+          JS_FILE="$GITHUB_WORKSPACE/tools/export_schema.js"
           # Point SQLcl at the wallet directory so it can read tnsnames.ora/sqlnet.ora
           export TNS_ADMIN="$GITHUB_WORKSPACE/wallet"
           echo "Using TNS_ADMIN=$TNS_ADMIN"
@@ -85,7 +86,7 @@ jobs:
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           WHENEVER SQLERROR EXIT SQL.SQLCODE
           CONNECT GITWORKFLOWTEST/"$DB_PASSWORD"@$DB_SERVICE
-          script ../../tools/export_schema.js
+          script ${JS_FILE}
           EXIT
           EOF
 
