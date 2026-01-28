@@ -1,119 +1,140 @@
 /**
  * Export DDL for a specific schema into ./schema_export/<SCHEMA>/*
- * Fixes:
- *  - Use SET LINESIZE / PAGESIZE (not LINES/PAGES) to avoid SP2-0158.
- *  - Replace util.getConn() with util.executeReturnOneCol('select user from dual').
+ * GraalVM-friendly version: no executeReturnClob; uses SQLcl's DDL ... SAVE
+ * Requires: SQLcl; Java 17+ with GraalVM JS (or Java 11 Nashorn)
+ *
+ * IMPORTANT:
+ *   - Set ENV: EXPORT_SCHEMA=WKSP_PENSIONCALC
+ *   - Connect as the OWNER (WKSP_PENSIONCALC) OR as a user with SELECT_CATALOG_ROLE
+ *     when exporting another schema (for DBA_OBJECTS access).
  */
 
 var Paths = java.nio.file.Paths;
 var Files = java.nio.file.Files;
 var StandardOpenOption = java.nio.file.StandardOpenOption;
-var Charset = java.nio.charset.StandardCharsets;
 
 function up(s){ return (s || "").toUpperCase(); }
 
-// --- Resolve schema to export ---
+// ----------------------------------------------------------------------------
+// Resolve target schema (env var or fallback to connected user via SELECT USER)
+// ----------------------------------------------------------------------------
 var TARGET = up(java.lang.System.getenv("EXPORT_SCHEMA"));
 if (!TARGET || TARGET.trim() === "") {
-  // No getConn() helper; use SQL to get the current user
-  TARGET = up( util.executeReturnOneCol("select user from dual") );
+  // Fallback: read current user using SQLcl output
+  sqlcl.setStmt("select user from dual");
+  sqlcl.run();
+  var out = String(ctx.getOutput()).trim();
+  TARGET = up(out.split(/\s+/).pop()); // last token is the USER
 }
 ctx.write("Exporting schema: " + TARGET + "\n");
 
-// --- Root export folder ---
+// Root export folder
 var ROOT = "schema_export/" + TARGET;
 
-// --- Map types to DBMS_METADATA types / folders / extensions ---
+// Type → folder, extension
 var MAP = {
-  "TABLE"             : { ddl:"TABLE",              folder:"TABLES",               ext:".sql" },
-  "VIEW"              : { ddl:"VIEW",               folder:"VIEWS",                ext:".sql" },
-  "SEQUENCE"          : { ddl:"SEQUENCE",           folder:"SEQUENCES",            ext:".sql" },
-  "INDEX"             : { ddl:"INDEX",              folder:"INDEXES",              ext:".sql" },
-  "FUNCTION"          : { ddl:"FUNCTION",           folder:"FUNCTIONS",            ext:".pls" },
-  "PROCEDURE"         : { ddl:"PROCEDURES",         folder:"PROCEDURES",           ext:".pls" }, // folder was pluralized
-  "PACKAGE"           : { ddl:"PACKAGE_SPEC",       folder:"PACKAGES",             ext:".pks" },
-  "PACKAGE BODY"      : { ddl:"PACKAGE_BODY",       folder:"PACKAGES",             ext:".pkb" },
-  "TRIGGER"           : { ddl:"TRIGGER",            folder:"TRIGGERS",             ext:".pls" },
-  "TYPE"              : { ddl:"TYPE_SPEC",          folder:"TYPES",                ext:".pks" },
-  "TYPE BODY"         : { ddl:"TYPE_BODY",          folder:"TYPES",                ext:".pkb" },
-  "SYNONYM"           : { ddl:"SYNONYM",            folder:"SYNONYMS",             ext:".sql" },
-  "MATERIALIZED VIEW" : { ddl:"MATERIALIZED_VIEW",  folder:"MATERIALIZED_VIEWS",   ext:".sql" }
+  "TABLE"             : { folder:"TABLES",               ext:".sql" },
+  "VIEW"              : { folder:"VIEWS",                ext:".sql" },
+  "SEQUENCE"          : { folder:"SEQUENCES",            ext:".sql" },
+  "INDEX"             : { folder:"INDEXES",              ext:".sql" },
+  "FUNCTION"          : { folder:"FUNCTIONS",            ext:".pls" },
+  "PROCEDURE"         : { folder:"PROCEDURES",           ext:".pls" },
+  "PACKAGE"           : { folder:"PACKAGES",             ext:".pks" },
+  "PACKAGE BODY"      : { folder:"PACKAGES",             ext:".pkb" },
+  "TRIGGER"           : { folder:"TRIGGERS",             ext:".pls" },
+  "TYPE"              : { folder:"TYPES",                ext:".pks" },
+  "TYPE BODY"         : { folder:"TYPES",                ext:".pkb" },
+  "SYNONYM"           : { folder:"SYNONYMS",             ext:".sql" },
+  "MATERIALIZED VIEW" : { folder:"MATERIALIZED_VIEWS",   ext:".sql" }
 };
 
-// --- Clean DDL output for version control ---
+// ----------------------------------------------------------------------------
+// Clean DDL for version control (SQLcl supports concise DDL switches)
+// ----------------------------------------------------------------------------
 [
-  "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'STORAGE',false)",
-  "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'SEGMENT_ATTRIBUTES',false)",
-  "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'TABLESPACE',false)",
-  "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'EMIT_SCHEMA',false)",
-  "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'CONSTRAINTS',true)",
-  "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'REF_CONSTRAINTS',true)",
-  // SQL*Plus/SQLcl display settings (use LINESIZE/PAGESIZE)
+  "set ddl storage off",
+  "set ddl segment_attributes off",
+  "set ddl tablespace off",
+  "set ddl emit_schema off",
+  "set ddl constraints on",
+  "set ddl ref_constraints on",
   "set long 2000000",
   "set linesize 32767",
   "set pagesize 0",
   "set trimspool on"
 ].forEach(function(cmd){ sqlcl.setStmt(cmd); sqlcl.run(); });
+// (SQLcl DDL switches from Jeff Smith’s notes)  // documentation ref in response
 
-// --- Ensure root exists ---
-Files.createDirectories(Paths.get(ROOT));
+// ----------------------------------------------------------------------------
+// Determine connected user
+// ----------------------------------------------------------------------------
+sqlcl.setStmt("select user from dual");
+sqlcl.run();
+var CURRENT = up(String(ctx.getOutput()).trim().split(/\s+/).pop());
 
-// --- Build object list (use USER_OBJECTS if we are the owner; else DBA_OBJECTS with OWNER filter) ---
-var currentUser = up( util.executeReturnOneCol("select user from dual") );
-var useUserObjects = (currentUser === TARGET);
-
-var listSql, binds = {};
-if (useUserObjects) {
+// ----------------------------------------------------------------------------
+// Build list of objects via SQL and capture the rows using SQLcl output
+// (We print as: TYPE|NAME  to parse reliably.)
+// ----------------------------------------------------------------------------
+var listSql;
+if (CURRENT === TARGET) {
   listSql =
-    "select object_type, object_name " +
+    "select object_type || '|' || object_name line " +
     "from user_objects " +
-    "where temporary = 'N' " +
-    "  and object_type in (" +
-    "    'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE'," +
-    "    'PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW'" +
-    "  ) " +
-    "order by object_type, object_name";
+    "where temporary='N' and object_type in (" +
+    " 'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE'," +
+    " 'PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW')" +
+    " order by object_type, object_name";
 } else {
   listSql =
-    "select object_type, object_name " +
+    "select object_type || '|' || object_name line " +
     "from dba_objects " +
-    "where owner = :own " +
-    "  and temporary = 'N' " +
-    "  and object_type in (" +
-    "    'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE'," +
-    "    'PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW'" +
-    "  ) " +
-    "order by object_type, object_name";
-  binds.own = TARGET;
+    "where owner = '" + TARGET + "' and temporary='N' and object_type in (" +
+    " 'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE'," +
+    " 'PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW')" +
+    " order by object_type, object_name";
 }
 
-var rows = util.executeReturnList(listSql, binds);
+sqlcl.setStmt(listSql);
+sqlcl.run();
+var lines = String(ctx.getOutput()).trim().split(/\r?\n/);
 
-function writeFile(pathStr, content) {
-  var p = Paths.get(pathStr);
-  Files.createDirectories(p.getParent());
-  Files.write(
-    p,
-    String(content || "").getBytes(Charset.UTF_8),
-    StandardOpenOption.CREATE,
-    StandardOpenOption.TRUNCATE_EXISTING
-  );
-}
+// Ensure root
+Files.createDirectories(Paths.get(ROOT));
 
-rows.forEach(function(r) {
-  var ot = r.OBJECT_TYPE, on = r.OBJECT_NAME;
+var count = 0;
+
+// ----------------------------------------------------------------------------
+// For each object, call SQLcl DDL with SAVE to write directly to disk.
+// ----------------------------------------------------------------------------
+lines.forEach(function(row) {
+  row = row.trim();
+  if (!row || row.indexOf('|') < 0) return;
+
+  var parts = row.split('|');
+  var ot = up(parts[0].trim());
+  var on = parts[1].trim();
+
   if (!MAP[ot]) return;
 
-  var m = MAP[ot];
-  var ddl = util.executeReturnClob(
-    "select dbms_metadata.get_ddl(:t, :o, :own) from dual",
-    { t: m.ddl, o: on, own: TARGET }
-  );
+  var dir = ROOT + "/" + MAP[ot].folder;
+  var file = dir + "/" + on + MAP[ot].ext;
 
-  var dir = ROOT + "/" + m.folder;
-  var file = dir + "/" + on + m.ext;
-  writeFile(file, ddl);
+  // create folder(s)
+  Files.createDirectories(Paths.get(dir));
+
+  // Build fully-qualified object reference when CURRENT != TARGET
+  var objRef = (CURRENT === TARGET) ? on : (TARGET + "." + on);
+
+  // Use SQLcl DDL to write DDL to file
+  // Syntax: DDL <object> <type> SAVE <file>
+  // (Type is optional, but passing it makes SQLcl explicit.)
+  var cmd = "ddl " + objRef + " " + ot + " save " + file;
+  sqlcl.setStmt(cmd);
+  sqlcl.run();
+
+  count++;
 });
 
 // Done
-ctx.write("Export complete: " + TARGET + " → " + ROOT + "\n");
+ctx.write("Export complete: " + TARGET + " → " + ROOT + " (" + count + " objects)\n");
