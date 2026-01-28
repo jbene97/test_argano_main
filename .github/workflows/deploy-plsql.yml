@@ -1,8 +1,7 @@
 name: Deploy PL/SQL to OCI Autonomous DB
 
 on:
-  push:
-    branches: [ "main" ]
+  workflow_dispatch:
 
     # Auth env for Oracle's action (as documented in the repo)
 env:

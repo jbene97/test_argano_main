@@ -1,0 +1,102 @@
+name: Nightly Schema Export
+
+on:
+  schedule:
+    - cron: '15 7 * * *'   # 07:15 UTC nightly
+  workflow_dispatch:       # allow manual run
+
+permissions:
+  contents: write          # required to commit back with GITHUB_TOKEN
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+
+    env:
+      # Oracle Action expects these names (it installs OCI CLI & runs commands)  [4](https://docs.public.oneportal.content.oci.oraclecloud.com/en-us/iaas/autonomous-database-serverless/doc/gs-security-and-authentation-autonomous-database.html)
+      OCI_CLI_USER:        ${{ secrets.OCI_USER_OCID }}
+      OCI_CLI_TENANCY:     ${{ secrets.OCI_TENANCY_OCID }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY }}
+      OCI_CLI_REGION:      ${{ secrets.OCI_REGION }}
+
+      # DB connection/wallet settings
+      ATP_OCID:            ${{ secrets.ATP_OCID }}
+      WALLET_PASSWORD:     ${{ secrets.WALLET_PASSWORD }}
+      DB_USER:             ${{ secrets.DB_USER }}
+      DB_PASSWORD:         ${{ secrets.DB_PASSWORD }}
+      DB_SERVICE:          ${{ vars.DB_SERVICE }}   # e.g., apexdev_tp
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify OCI (optional)
+        uses: oracle-actions/run-oci-cli-command@v1.3.2
+        with:
+          command: oci os ns get
+          silent: false
+
+      - name: Download Autonomous DB Wallet
+        uses: oracle-actions/run-oci-cli-command@v1.3.2
+        with:
+          command: >
+            oci db autonomous-database generate-wallet
+            --autonomous-database-id ${{ env.ATP_OCID }}
+            --password "${{ env.WALLET_PASSWORD }}"
+            --file wallet.zip
+            --generate-type SINGLE
+            --region ${{ env.OCI_CLI_REGION }}
+          silent: false
+        # If you ever see 404 NotAuthorizedOrNotFound here, check the region value matches
+        # the ADB's region exactly; region mismatch is a common cause.  [8](https://stackoverflow.com/questions/69456790/how-can-i-download-my-adb-wallet-using-automation-scripts)
+
+      - name: Unzip wallet
+        run: unzip -o wallet.zip -d wallet
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install SQLcl
+        run: |
+          curl -fL --retry 3 --retry-all-errors \
+            -o sqlcl.zip \
+            https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-latest.zip
+          unzip -q sqlcl.zip -d $HOME/sqlcl
+          echo "$HOME/sqlcl/sqlcl/bin" >> $GITHUB_PATH
+          sql -v
+        # SQLcl’s download link and install instructions are provided by Oracle.  [3](https://docs.oracle.com/en-us/iaas/tools/oci-cli/3.54.2/oci_cli_docs/oci.html)
+
+      - name: Export schema (SQLcl)
+        run: |
+          set -e
+          export TNS_ADMIN="$GITHUB_WORKSPACE/wallet"   # let SQLcl find tnsnames/sqlnet  [9](https://www.ateam-oracle.com/github-actions-oci-a-guide-to-secure-oidc-token-exchange)
+          # Show aliases and fail early if DB_SERVICE not found
+          grep -E "^[[:space:]]*${DB_SERVICE}[[:space:]]*=" "$TNS_ADMIN/tnsnames.ora" \
+            || (echo "::error :: DB_SERVICE '${DB_SERVICE}' not found in wallet tnsnames.ora" && exit 1)
+
+          # Run the SQLcl JS exporter
+          sql /nolog <<EOF
+          SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
+          WHENEVER SQLERROR EXIT SQL.SQLCODE
+          CONNECT ${DB_USER}/"${DB_PASSWORD}"@${DB_SERVICE}
+          script tools/export_schema.js
+          EXIT
+          EOF
+
+      - name: Commit & push if changed
+        run: |
+          set -e
+          git config user.name  "github-actions"
+          git config user.email "actions@github.com"
+          git add schema_export || true
+          # Only commit if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Nightly schema export: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            git push
+          else
+            echo "No schema changes to commit."
+          fi
