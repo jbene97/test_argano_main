@@ -32,7 +32,7 @@ var MAP = {
 ctx.write('Exporting schema: ' + TARGET + '\n');
 
 // SQLcl display tweaks
-["set long 2000000","set linesize 32767","set pagesize 0","set trimspool on"].forEach(function(c){ sqlcl.setStmt(c); sqlcl.run(); });
+["set long 2000000","set linesize 32767","set pagesize 0","set trimspool on","set serveroutput on size 1000000"].forEach(function(c){ sqlcl.setStmt(c); sqlcl.run(); });
 
 // Build object list by spooling a CSV
 var listDir = WORK + '/' + ROOT;
@@ -135,9 +135,13 @@ lines.forEach(function(line){
   plsql += "END;\n/";
 
   ctx.write('Spooling DDL for ' + TARGET + '.' + on + ' -> ' + absFile + '\n');
+  // disable echo so the PL/SQL block itself isn't written into the spool
+  try { sqlcl.setStmt('set echo off'); sqlcl.run(); } catch(e) {}
   sqlcl.setStmt(spoolOn); sqlcl.run();
   sqlcl.setStmt(plsql); sqlcl.run();
   sqlcl.setStmt(spoolOff); sqlcl.run();
+  // restore echo
+  try { sqlcl.setStmt('set echo on'); sqlcl.run(); } catch(e) {}
 
   // verify
   var saved = false;
