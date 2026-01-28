@@ -93,14 +93,42 @@ lines.forEach(function(line){
 
   var absFile = WORK + '/' + dirRel + '/' + on + MAP[ot].ext;
 
-  // spool DBMS_METADATA.get_ddl(...) into the file
+  // spool a PL/SQL block that safely attempts GET_DDL and falls back to ALL_SOURCE
   var spoolOn = 'spool "' + absFile + '"';
-  var ddlSelect = "select dbms_metadata.get_ddl('" + ot.replace("'","''") + "','" + on.replace("'","''") + "','" + TARGET + "') from dual";
   var spoolOff = 'spool off';
+
+  // escape single quotes for PL/SQL
+  var ot_esc = ot.replace("'","''");
+  var on_esc = on.replace("'","''");
+
+  var plsql = '';
+  plsql += "DECLARE\n";
+  plsql += "  l_ddl CLOB;\n";
+  plsql += "  l_pos INTEGER := 1;\n";
+  plsql += "  l_len INTEGER;\n";
+  plsql += "  l_chunk VARCHAR2(32767);\n";
+  plsql += "BEGIN\n";
+  plsql += "  BEGIN\n";
+  plsql += "    l_ddl := DBMS_METADATA.GET_DDL('" + ot_esc + "','" + on_esc + "','" + TARGET + "');\n";
+  plsql += "    IF l_ddl IS NOT NULL THEN\n";
+  plsql += "      l_len := DBMS_LOB.GETLENGTH(l_ddl);\n";
+  plsql += "      WHILE l_pos <= l_len LOOP\n";
+  plsql += "        l_chunk := DBMS_LOB.SUBSTR(l_ddl,32767,l_pos);\n";
+  plsql += "        DBMS_OUTPUT.PUT_LINE(l_chunk);\n";
+  plsql += "        l_pos := l_pos + 32767;\n";
+  plsql += "      END LOOP;\n";
+  plsql += "    END IF;\n";
+  plsql += "  EXCEPTION WHEN OTHERS THEN\n";
+  plsql += "    DBMS_OUTPUT.PUT_LINE('--ERROR:'||SQLERRM);\n";
+  plsql += "    FOR r IN (SELECT text FROM all_source WHERE owner='" + TARGET + "' AND name='" + on_esc + "' ORDER BY line) LOOP\n";
+  plsql += "      DBMS_OUTPUT.PUT_LINE(r.text);\n";
+  plsql += "    END LOOP;\n";
+  plsql += "  END;\n";
+  plsql += "END;\n/";
 
   ctx.write('Spooling DDL for ' + TARGET + '.' + on + ' to ' + absFile + '\n');
   sqlcl.setStmt(spoolOn); sqlcl.run();
-  sqlcl.setStmt(ddlSelect); sqlcl.run();
+  sqlcl.setStmt(plsql); sqlcl.run();
   sqlcl.setStmt(spoolOff); sqlcl.run();
 
   // verify
