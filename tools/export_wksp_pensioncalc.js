@@ -43,7 +43,7 @@ sqlcl.setStmt('set heading off'); sqlcl.run();
 sqlcl.setStmt('set sqlformat csv'); sqlcl.run();
 
 var listSql =
-  "select object_type,object_name from dba_objects where owner='" + TARGET + "' and temporary='N' and object_type in (" +
+  "select object_type,object_name,status from dba_objects where owner='" + TARGET + "' and temporary='N' and object_type in (" +
   "'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW') order by object_type,object_name";
 
 sqlcl.setStmt('spool "' + listFile + '"'); sqlcl.run();
@@ -80,10 +80,11 @@ lines.forEach(function(line){
   if (!line) return;
 
   var parts = line.split(',');
-  if (parts.length < 2) return;
+  if (parts.length < 3) return;
 
   var ot = stripQuotes(parts[0].trim()).toUpperCase();
   var on = stripQuotes(parts[1].trim());
+  var status = stripQuotes(parts[2].trim()).toUpperCase();
   if (!MAP[ot]) return;
 
   var dirRel = ROOT + '/' + MAP[ot].folder;
@@ -115,6 +116,17 @@ lines.forEach(function(line){
       sqlcl.setStmt('spool off'); sqlcl.run();
       var p2 = Paths.get(absFile); if (Files.exists(p2) && Files.size(p2) > 0) saved = true;
     } catch(e){}
+  }
+
+  // If still not saved and the object is INVALID, fall back to ALL_SOURCE for source text
+  if (!saved && status === 'INVALID') {
+    try {
+      ctx.write('Falling back to ALL_SOURCE for ' + on + '\n');
+      sqlcl.setStmt('spool "' + absFile + '"'); sqlcl.run();
+      sqlcl.setStmt("select text from all_source where owner='" + TARGET + "' and name='" + on.replace("'","''") + "' order by line"); sqlcl.run();
+      sqlcl.setStmt('spool off'); sqlcl.run();
+      var p3 = Paths.get(absFile); if (Files.exists(p3) && Files.size(p3) > 0) saved = true;
+    } catch(e) {}
   }
 
   if (!saved) {
