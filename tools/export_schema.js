@@ -112,9 +112,27 @@ if (CURRENT === TARGET) {
     " order by object_type, object_name";
 }
 
+// Spool the object list to a file to reliably capture SQLcl output in CI
+var WORK = java.lang.System.getenv("GITHUB_WORKSPACE");
+var listDir = (WORK ? WORK + "/" : "") + ROOT;
+Files.createDirectories(Paths.get(listDir));
+var listFile = listDir + "/.object_list.csv";
+
+sqlcl.setStmt('spool "' + listFile + '"');
+sqlcl.run();
 sqlcl.setStmt(listSql);
 sqlcl.run();
-var csv = String(readOutput()).trim();
+sqlcl.setStmt('spool off');
+sqlcl.run();
+
+// Read the spooled file from disk
+var csv = "";
+try {
+  var bytes = Files.readAllBytes(Paths.get(listFile));
+  csv = String(new java.lang.String(bytes, java.nio.charset.StandardCharsets.UTF_8)).trim();
+} catch (e) {
+  csv = String(readOutput()).trim(); // fallback to previous approach
+}
 
 // Restore pretty output for the rest if you want
 sqlcl.setStmt("set sqlformat ansiconsole");
