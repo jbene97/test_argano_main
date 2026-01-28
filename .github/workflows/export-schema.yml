@@ -31,12 +31,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify OCI (optional)
-        uses: oracle-actions/run-oci-cli-command@v1.3.2
-        with:
-          command: oci os ns get
-          silent: false
-
       - name: Download Autonomous DB Wallet
         uses: oracle-actions/run-oci-cli-command@v1.3.2
         with:
@@ -62,10 +56,9 @@ jobs:
 
       - name: Install SQLcl
         run: |
-          curl -fL --retry 3 --retry-all-errors \
-            -o sqlcl.zip \
-            https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-latest.zip
-          unzip -q sqlcl.zip -d $HOME/sqlcl
+          set -e
+          curl -sS -O https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-latest.zip
+          unzip -q sqlcl-latest.zip -d $HOME/sqlcl
           echo "$HOME/sqlcl/sqlcl/bin" >> $GITHUB_PATH
           sql -v
         # SQLcl’s download link and install instructions are provided by Oracle.  [3](https://docs.oracle.com/en-us/iaas/tools/oci-cli/3.54.2/oci_cli_docs/oci.html)
@@ -83,7 +76,7 @@ jobs:
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           WHENEVER SQLERROR EXIT SQL.SQLCODE
           CONNECT ${DB_USER}/"${DB_PASSWORD}"@${DB_SERVICE}
-          script tools/export_schema.js
+          script ../../tools/export_schema.js
           EXIT
           EOF
 
