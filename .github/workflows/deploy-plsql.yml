@@ -37,17 +37,6 @@ jobs:
           command: oci os ns get
           silent: false
 
-      #Use ${{ env.ATP_OCID }} and ${{ env.WALLET_PASSWORD }} so the values are injected
-      - name: Show ADB details (sanity check)
-        uses: oracle-actions/run-oci-cli-command@v1.3.2
-        with:
-          command: >
-            oci db autonomous-database get
-            --autonomous-database-id ${{ env.ATP_OCID }}
-            --region ${{ env.OCI_CLI_REGION }}
-            --debug
-          silent: false
-
       - name: Download Autonomous DB Wallet
         uses: oracle-actions/run-oci-cli-command@v1.3.2
         with:
@@ -86,6 +75,9 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_SERVICE:  ${{ secrets.DB_SERVICE }}
         run: |
+          echo "TNS aliases found:"
+          grep -E '^[A-Za-z0-9_-]+\s*=' "$TNS_ADMIN/tnsnames.ora" | awk -F= '{print $1}' | tr -d ' '
+          
           set -e
           sql /nolog <<'EOF'
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
