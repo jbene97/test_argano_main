@@ -69,6 +69,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Test SQLcl JS engine
+        run: |
+            sql /nolog <<EOF
+            script
+            ctx.write("JS engine is working!\n");
+            /
+            EXIT
+            EOF
+
       - name: Export Schema
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
