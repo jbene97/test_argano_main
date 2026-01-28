@@ -86,12 +86,14 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_SERVICE:  ${{ secrets.DB_SERVICE }}
         run: |
+          set -e
           sql /nolog <<'EOF'
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           SET CLOUDCONFIG wallet
           SHOW TNS
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
-          CONNECT GITWORKFLOWTEST/${DB_PASSWORD}@wallet/${DB_SERVICE}
+          WHENEVER SQLERROR EXIT SQL.SQLCODE
+          CONNECT GITWORKFLOWTEST/${DB_PASSWORD}@${DB_SERVICE}
           EXIT
           EOF
           EXIT
