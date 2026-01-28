@@ -87,7 +87,7 @@ jobs:
           EXPORT_SCHEMA: WKSP_PENSIONCALC
         run: |
           set -e
-          JS_FILE="$GITHUB_WORKSPACE/tools/export_schema.js"
+          JS_FILE="$GITHUB_WORKSPACE/tools/export_wksp_pensioncalc.js"
           # Point SQLcl at the wallet directory so it can read tnsnames.ora/sqlnet.ora
           export TNS_ADMIN="$GITHUB_WORKSPACE/wallet"
           echo "Using TNS_ADMIN=$TNS_ADMIN"
@@ -116,7 +116,3 @@ jobs:
           else
             echo "No schema changes to commit."
           fi
-      - name: Verify export output
-        run: |
-         echo "Exported files (first 50):"
-         find "$GITHUB_WORKSPACE/schema_export/WKSP_PENSIONCALC" -type f | head -n 50 || true
