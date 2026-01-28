@@ -1,16 +1,8 @@
 /**
- * SQLcl schema export script
- * - Exports DDL for a specific Oracle schema into ./schema_export/<SCHEMA>/*
- * - Works when connected as the schema owner (uses USER_OBJECTS)
- *   or as a privileged account (uses DBA_OBJECTS with OWNER filter).
- *
- * How to choose schema:
- *   1) ENV var:  EXPORT_SCHEMA=WS_PENSION_CALC
- *   2) Fallback: current connected user
- *
- * Notes:
- * - Uses DBMS_METADATA transforms for clean, source-control-friendly DDL
- * - Writes one file per object type/object
+ * Export DDL for a specific schema into ./schema_export/<SCHEMA>/*
+ * Fixes:
+ *  - Use SET LINESIZE / PAGESIZE (not LINES/PAGES) to avoid SP2-0158.
+ *  - Replace util.getConn() with util.executeReturnOneCol('select user from dual').
  */
 
 var Paths = java.nio.file.Paths;
@@ -23,21 +15,22 @@ function up(s){ return (s || "").toUpperCase(); }
 // --- Resolve schema to export ---
 var TARGET = up(java.lang.System.getenv("EXPORT_SCHEMA"));
 if (!TARGET || TARGET.trim() === "") {
-  TARGET = up(util.getConn().getUser());
+  // No getConn() helper; use SQL to get the current user
+  TARGET = up( util.executeReturnOneCol("select user from dual") );
 }
 ctx.write("Exporting schema: " + TARGET + "\n");
 
-// --- Root export folder: ./schema_export/<SCHEMA> ---
+// --- Root export folder ---
 var ROOT = "schema_export/" + TARGET;
 
-// --- Map Oracle object types to DBMS_METADATA types, folders, extensions ---
+// --- Map types to DBMS_METADATA types / folders / extensions ---
 var MAP = {
   "TABLE"             : { ddl:"TABLE",              folder:"TABLES",               ext:".sql" },
   "VIEW"              : { ddl:"VIEW",               folder:"VIEWS",                ext:".sql" },
   "SEQUENCE"          : { ddl:"SEQUENCE",           folder:"SEQUENCES",            ext:".sql" },
   "INDEX"             : { ddl:"INDEX",              folder:"INDEXES",              ext:".sql" },
   "FUNCTION"          : { ddl:"FUNCTION",           folder:"FUNCTIONS",            ext:".pls" },
-  "PROCEDURE"         : { ddl:"PROCEDURE",          folder:"PROCEDURES",           ext:".pls" },
+  "PROCEDURE"         : { ddl:"PROCEDURES",         folder:"PROCEDURES",           ext:".pls" }, // folder was pluralized
   "PACKAGE"           : { ddl:"PACKAGE_SPEC",       folder:"PACKAGES",             ext:".pks" },
   "PACKAGE BODY"      : { ddl:"PACKAGE_BODY",       folder:"PACKAGES",             ext:".pkb" },
   "TRIGGER"           : { ddl:"TRIGGER",            folder:"TRIGGERS",             ext:".pls" },
@@ -47,7 +40,7 @@ var MAP = {
   "MATERIALIZED VIEW" : { ddl:"MATERIALIZED_VIEW",  folder:"MATERIALIZED_VIEWS",   ext:".sql" }
 };
 
-// --- Tidy DDL output for version control ---
+// --- Clean DDL output for version control ---
 [
   "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'STORAGE',false)",
   "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'SEGMENT_ATTRIBUTES',false)",
@@ -55,43 +48,44 @@ var MAP = {
   "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'EMIT_SCHEMA',false)",
   "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'CONSTRAINTS',true)",
   "exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'REF_CONSTRAINTS',true)",
-  "set long 2000000 pages 0 lines 32767 trimspool on"
+  // SQL*Plus/SQLcl display settings (use LINESIZE/PAGESIZE)
+  "set long 2000000",
+  "set linesize 32767",
+  "set pagesize 0",
+  "set trimspool on"
 ].forEach(function(cmd){ sqlcl.setStmt(cmd); sqlcl.run(); });
 
 // --- Ensure root exists ---
 Files.createDirectories(Paths.get(ROOT));
 
-// --- Build object list query depending on privileges/context ---
-var currentUser = up(util.getConn().getUser());
-var useUserObjects = (currentUser === TARGET); // connected as schema owner
-var listSql;
+// --- Build object list (use USER_OBJECTS if we are the owner; else DBA_OBJECTS with OWNER filter) ---
+var currentUser = up( util.executeReturnOneCol("select user from dual") );
+var useUserObjects = (currentUser === TARGET);
 
+var listSql, binds = {};
 if (useUserObjects) {
-  listSql = ""
-    + "select object_type, object_name "
-    + "from user_objects "
-    + "where temporary = 'N' "
-    + "  and object_type in ("
-    + "    'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE',"
-    + "    'PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW'"
-    + "  ) "
-    + "order by object_type, object_name";
+  listSql =
+    "select object_type, object_name " +
+    "from user_objects " +
+    "where temporary = 'N' " +
+    "  and object_type in (" +
+    "    'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE'," +
+    "    'PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW'" +
+    "  ) " +
+    "order by object_type, object_name";
 } else {
-  // Requires SELECT on DBA_OBJECTS (e.g., SELECT_CATALOG_ROLE) if not the owner.
-  listSql = ""
-    + "select object_type, object_name "
-    + "from dba_objects "
-    + "where owner = :own "
-    + "  and temporary = 'N' "
-    + "  and object_type in ("
-    + "    'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE',"
-    + "    'PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW'"
-    + "  ) "
-    + "order by object_type, object_name";
+  listSql =
+    "select object_type, object_name " +
+    "from dba_objects " +
+    "where owner = :own " +
+    "  and temporary = 'N' " +
+    "  and object_type in (" +
+    "    'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE'," +
+    "    'PACKAGE','PACKAGE BODY','TRIGGER','TYPE','TYPE BODY','SYNONYM','MATERIALIZED VIEW'" +
+    "  ) " +
+    "order by object_type, object_name";
+  binds.own = TARGET;
 }
-
-var binds = {};
-if (!useUserObjects) binds.own = TARGET;
 
 var rows = util.executeReturnList(listSql, binds);
 
@@ -107,34 +101,19 @@ function writeFile(pathStr, content) {
 }
 
 rows.forEach(function(r) {
-  var ot = r.OBJECT_TYPE;
-  var on = r.OBJECT_NAME;
+  var ot = r.OBJECT_TYPE, on = r.OBJECT_NAME;
   if (!MAP[ot]) return;
 
   var m = MAP[ot];
-  var ddlSql;
-
-  // Always pass OWNER => TARGET to get DDL for the requested schema
-  ddlSql = "select dbms_metadata.get_ddl('" + m.ddl + "', :obj, :own) from dual";
-
-  var b = { obj: on, own: TARGET };
-  var ddl = util.executeReturnClob(ddlSql, b);
+  var ddl = util.executeReturnClob(
+    "select dbms_metadata.get_ddl(:t, :o, :own) from dual",
+    { t: m.ddl, o: on, own: TARGET }
+  );
 
   var dir = ROOT + "/" + m.folder;
   var file = dir + "/" + on + m.ext;
-
   writeFile(file, ddl);
 });
-
-// Optional: export object grants (uncomment to enable)
-/*
-var grantsDir = ROOT + "/GRANTS";
-var grants = util.executeReturnClob(
-  "select dbms_metadata.get_granted_ddl('OBJECT_GRANT', :own) from dual",
-  { own: TARGET }
-);
-writeFile(grantsDir + "/object_grants.sql", grants);
-*/
 
 // Done
 ctx.write("Export complete: " + TARGET + " → " + ROOT + "\n");
