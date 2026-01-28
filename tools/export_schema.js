@@ -160,18 +160,19 @@ lines.forEach(function(line) {
   var dirRel = ROOT + "/" + folder;
   var fileRel = dirRel + "/" + on + ext;
 
-  // ensure dirs exist in the repo
-  Files.createDirectories(Paths.get(dirRel));
+  // ensure dirs exist in the repo (create absolute path inside workspace)
+  var absDir = (WORK ? WORK + "/" : "") + dirRel;
+  Files.createDirectories(Paths.get(absDir));
 
   // If not connected as owner, fully-qualify the object for DDL
   var objRef = (CURRENT === TARGET) ? on : (TARGET + "." + on);
 
   // Use an absolute file path for SAVE to avoid CWD confusion
-  var WORK = java.lang.System.getenv("WKSP_PENSIONCALC");
   var absFile = (WORK ? WORK + "/" : "") + fileRel;
 
-  // Quote the path to protect spaces
+  // Quote the path to protect spaces and log the command
   var cmd = 'ddl ' + objRef + ' ' + ot + ' save "' + absFile + '"';
+  ctx.write("Running: " + cmd + "\n");
   sqlcl.setStmt(cmd);
   sqlcl.run();
 
@@ -185,6 +186,7 @@ lines.forEach(function(line) {
 
   if (!saved) {
     var cmd2 = 'ddl ' + objRef + ' save "' + absFile + '"';
+    ctx.write("Retrying: " + cmd2 + "\n");
     sqlcl.setStmt(cmd2);
     sqlcl.run();
     try {
@@ -196,6 +198,7 @@ lines.forEach(function(line) {
   if (!saved) {
     ctx.write("Warning: DDL save failed for " + objRef + " (" + ot + ") -> " + absFile + "\n");
   } else {
+    ctx.write("Saved: " + absFile + "\n");
     count++;
   }
 });
