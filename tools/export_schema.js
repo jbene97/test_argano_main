@@ -169,15 +169,28 @@ lines.forEach(function(line) {
 
   // Use an absolute file path for SAVE to avoid CWD confusion
   var absFile = (WORK ? WORK + "/" : "") + fileRel;
+  // Use DBMS_METADATA.GET_DDL and spool its output to the target file. This
+  // is more reliable in CI than parsing SQLcl stdout and gives us the actual
+  // DDL from the database.
 
-  // Quote the path to protect spaces and log the command
-  var cmd = 'ddl ' + objRef + ' ' + ot + ' save "' + absFile + '"';
-  ctx.write("Running: " + cmd + "\n");
-  sqlcl.setStmt(cmd);
-  sqlcl.run();
+  // Ensure DBMS_METADATA transforms are set for consistent output (no storage/tablespace)
+  try {
+    var setTransforms = "begin dbms_metadata.set_transform_param(dbms_metadata.session_transform,'STORAGE',false); dbms_metadata.set_transform_param(dbms_metadata.session_transform,'SEGMENT_ATTRIBUTES',false); dbms_metadata.set_transform_param(dbms_metadata.session_transform,'TABLESPACE',false); dbms_metadata.set_transform_param(dbms_metadata.session_transform,'EMIT_SCHEMA',false); end;";
+    sqlcl.setStmt(setTransforms);
+    sqlcl.run();
+  } catch (e) { /* ignore */ }
 
-  // Verify the file was written; if not, retry without the type (some DB objects
-  // may need the type omitted). Only increment count when a non-empty file exists.
+  // Prepare SQL to spool the DDL to the file
+  var spoolOn = 'spool "' + absFile + '"';
+  var ddlSelect = "select dbms_metadata.get_ddl('" + ot.replace("'","''") + "','" + on.replace("'","''") + "','" + TARGET + "') from dual";
+  var spoolOff = 'spool off';
+
+  ctx.write("Spooling DDL for " + objRef + " to " + absFile + "\n");
+  sqlcl.setStmt(spoolOn); sqlcl.run();
+  sqlcl.setStmt(ddlSelect); sqlcl.run();
+  sqlcl.setStmt(spoolOff); sqlcl.run();
+
+  // Verify the file was written and non-empty
   var saved = false;
   try {
     var p = Paths.get(absFile);
@@ -185,18 +198,19 @@ lines.forEach(function(line) {
   } catch (e) {}
 
   if (!saved) {
-    var cmd2 = 'ddl ' + objRef + ' save "' + absFile + '"';
-    ctx.write("Retrying: " + cmd2 + "\n");
-    sqlcl.setStmt(cmd2);
-    sqlcl.run();
+    // Retry: some objects (like PACKAGE BODY) may need alternate handling; try without owner
     try {
+      ctx.write("Retrying DDL without owner for " + objRef + "\n");
+      sqlcl.setStmt('spool "' + absFile + '"'); sqlcl.run();
+      sqlcl.setStmt("select dbms_metadata.get_ddl('" + ot.replace("'","''") + "','" + on.replace("'","''") + "') from dual"); sqlcl.run();
+      sqlcl.setStmt('spool off'); sqlcl.run();
       var p2 = Paths.get(absFile);
       if (Files.exists(p2) && Files.size(p2) > 0) saved = true;
     } catch (e) {}
   }
 
   if (!saved) {
-    ctx.write("Warning: DDL save failed for " + objRef + " (" + ot + ") -> " + absFile + "\n");
+    ctx.write("Warning: DDL extract failed for " + objRef + " -> " + absFile + "\n");
   } else {
     ctx.write("Saved: " + absFile + "\n");
     count++;
