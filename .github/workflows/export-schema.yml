@@ -31,13 +31,13 @@ jobs:
         uses: oracle-actions/run-oci-cli-command@v1.3.2
         with:
           command: oci --version
-          silent: false
+          silent: true
 
       - name: Verify auth (Object Storage namespace)
         uses: oracle-actions/run-oci-cli-command@v1.3.2
         with:
           command: oci os ns get
-          silent: false
+          silent: true
 
       - name: Download Autonomous DB Wallet
         uses: oracle-actions/run-oci-cli-command@v1.3.2
@@ -50,7 +50,7 @@ jobs:
             --generate-type SINGLE
             --region ${{ env.OCI_CLI_REGION }}
             --debug
-          silent: false
+          silent: true
 
       - name: Unzip wallet
         run: unzip -o wallet.zip -d wallet
@@ -62,15 +62,6 @@ jobs:
           unzip -q sqlcl-latest.zip -d $HOME/sqlcl
           echo "$HOME/sqlcl/sqlcl/bin" >> $GITHUB_PATH
       
-      - name: Inspect wallet files
-        run: |
-          echo "Wallet directory contents:"
-          ls -R wallet || echo "wallet directory missing"
-
-      - name: Check wallet.zip
-        run: |
-          echo "Wallet zip size:"
-          ls -l wallet.zip
 
       - name: Install Java
         uses: actions/setup-java@v4
@@ -89,10 +80,6 @@ jobs:
           export TNS_ADMIN="$GITHUB_WORKSPACE/wallet"
           echo "Using TNS_ADMIN=$TNS_ADMIN"
 
-          # Optional: show aliases found in the wallet (must include the value in DB_SERVICE)
-          echo "TNS aliases found:"
-          grep -E '^[A-Za-z0-9_-]+\s*=' "$TNS_ADMIN/tnsnames.ora" | awk -F= '{print $1}' | tr -d ' '
-
           # Run SQLcl and let the shell expand env variables (notgt e: no quotes around EOF)
           sql /nolog <<EOF
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
@@ -101,7 +88,6 @@ jobs:
           script ../../tools/export_schema.js
           EXIT
           EOF
-          ``
 
 
 
