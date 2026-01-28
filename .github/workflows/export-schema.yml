@@ -111,8 +111,12 @@ jobs:
           git add schema_export || true
           # Only commit if there are changes
           if ! git diff --cached --quiet; then
-            git commit -m "Nightly schema export: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            git commit -m "schema export: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             git push
           else
             echo "No schema changes to commit."
           fi
+      - name: Verify export output
+        run: |
+         echo "Exported files (first 50):"
+         find "$GITHUB_WORKSPACE/schema_export/WKSP_PENSIONCALC" -type f | head -n 50 || true

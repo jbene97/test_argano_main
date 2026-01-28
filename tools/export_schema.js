@@ -87,14 +87,16 @@ sqlcl.setStmt("select user from dual");
 sqlcl.run();
 var CURRENT = up(String(readOutput()).trim().split(/\s+/).pop());
 
-// ----------------------------------------------------------------------------
-// Build list of objects via SQL and capture the rows using SQLcl output
-// (We print as: TYPE|NAME  to parse reliably.)
-// ----------------------------------------------------------------------------
+// ---- Emit the list as CSV without headers, then parse ----
+sqlcl.setStmt("set heading off");
+sqlcl.run();
+sqlcl.setStmt("set sqlformat csv");
+sqlcl.run();
+
 var listSql;
 if (CURRENT === TARGET) {
   listSql =
-    "select object_type || '|' || object_name line " +
+    "select object_type, object_name " +
     "from user_objects " +
     "where temporary='N' and object_type in (" +
     " 'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE'," +
@@ -102,7 +104,7 @@ if (CURRENT === TARGET) {
     " order by object_type, object_name";
 } else {
   listSql =
-    "select object_type || '|' || object_name line " +
+    "select object_type, object_name " +
     "from dba_objects " +
     "where owner = '" + TARGET + "' and temporary='N' and object_type in (" +
     " 'TABLE','VIEW','SEQUENCE','INDEX','FUNCTION','PROCEDURE'," +
@@ -112,7 +114,52 @@ if (CURRENT === TARGET) {
 
 sqlcl.setStmt(listSql);
 sqlcl.run();
-var lines = String(readOutput()).trim().split(/\r?\n/);
+var csv = String(readOutput()).trim();
+
+// Restore pretty output for the rest if you want
+sqlcl.setStmt("set sqlformat ansiconsole");
+sqlcl.run();
+
+var lines = csv ? csv.split(/\r?\n/) : [];
+
+var count = 0;
+lines.forEach(function(line) {
+  line = line.trim();
+  if (!line) return;
+
+  // Format is: OBJECT_TYPE,OBJECT_NAME
+  var parts = line.split(",");
+  if (parts.length < 2) return;
+
+  var ot = parts[0].trim().toUpperCase();
+  var on = parts[1].trim();
+
+  if (!MAP[ot]) return;
+
+  var folder = MAP[ot].folder;
+  var ext    = MAP[ot].ext;
+
+  var dirRel = ROOT + "/" + folder;
+  var fileRel = dirRel + "/" + on + ext;
+
+  // ensure dirs exist in the repo
+  Files.createDirectories(Paths.get(dirRel));
+
+  // If not connected as owner, fully-qualify the object for DDL
+  var objRef = (CURRENT === TARGET) ? on : (TARGET + "." + on);
+
+  // Use an absolute file path for SAVE to avoid CWD confusion
+  var WORK = java.lang.System.getenv("GITHUB_WORKSPACE");
+  var absFile = (WORK ? WORK + "/" : "") + fileRel;
+
+  // Quote the path to protect spaces
+  var cmd = 'ddl ' + objRef + ' ' + ot + ' save "' + absFile + '"';
+  sqlcl.setStmt(cmd);
+  sqlcl.run();
+
+  count++;
+});
+ctx.write("Export complete: " + TARGET + " → " + ROOT + " (" + count + " objects)\n");
 
 // Ensure root
 Files.createDirectories(Paths.get(ROOT));
