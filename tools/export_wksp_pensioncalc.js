@@ -94,10 +94,10 @@ lines.forEach(function(line){
 
   // spool DBMS_METADATA.get_ddl(...) into the file
   var spoolOn = 'spool "' + absFile + '"';
-  var ddlSelect = "select dbms_metadata.get_ddl('" + ot.replace("'","''") + "','" + on.replace("'","''") + "','" + TARGET + "') from dual";
+  var ddlSelect = "select dbms_metadata.get_ddl('" + TARGET.replace("'","''") + "','" + on.replace("'","''") + "','" + TARGET + "') from dual";
   var spoolOff = 'spool off';
 
-  ctx.write('Spooling DDL for ' + ot + '.' + on + ' to ' + absFile + '\n');
+  ctx.write('Spooling DDL for ' + TARGET + '.' + on + ' to ' + absFile + '\n');
   sqlcl.setStmt(spoolOn); sqlcl.run();
   sqlcl.setStmt(ddlSelect); sqlcl.run();
   sqlcl.setStmt(spoolOff); sqlcl.run();
