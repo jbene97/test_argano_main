@@ -94,7 +94,7 @@ lines.forEach(function(line){
 
   // spool DBMS_METADATA.get_ddl(...) into the file
   var spoolOn = 'spool "' + absFile + '"';
-  var ddlSelect = "select dbms_metadata.get_ddl('" + TARGET.replace("'","''") + "','" + on.replace("'","''") + "','" + TARGET + "') from dual";
+  var ddlSelect = "select dbms_metadata.get_ddl('" + ot.replace("'","''") + "','" + on.replace("'","''") + "','" + TARGET + "') from dual";
   var spoolOff = 'spool off';
 
   ctx.write('Spooling DDL for ' + TARGET + '.' + on + ' to ' + absFile + '\n');
@@ -111,7 +111,7 @@ lines.forEach(function(line){
     try {
       ctx.write('Retrying without owner for ' + on + '\n');
       sqlcl.setStmt('spool "' + absFile + '"'); sqlcl.run();
-      sqlcl.setStmt("select dbms_metadata.get_ddl('" + TARGET.replace("'","''") + "','" + on.replace("'","''") + "') from dual"); sqlcl.run();
+      sqlcl.setStmt("select dbms_metadata.get_ddl('" + ot.replace("'","''") + "','" + on.replace("'","''") + "') from dual"); sqlcl.run();
       sqlcl.setStmt('spool off'); sqlcl.run();
       var p2 = Paths.get(absFile); if (Files.exists(p2) && Files.size(p2) > 0) saved = true;
     } catch(e){}
