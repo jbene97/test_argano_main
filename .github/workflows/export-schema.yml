@@ -64,10 +64,12 @@ jobs:
       
 
       - name: Install Java
-        uses: actions/setup-java@v4
+        uses: graalvm/setup-graalvm@v1
         with:
-          distribution: temurin
-          java-version: '21'
+         version: '22.3.1'
+         java-version: '17'
+         components: 'js'
+
 
       - name: Test SQLcl JS engine
         run: |
