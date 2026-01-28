@@ -167,7 +167,7 @@ lines.forEach(function(line) {
   var objRef = (CURRENT === TARGET) ? on : (TARGET + "." + on);
 
   // Use an absolute file path for SAVE to avoid CWD confusion
-  var WORK = java.lang.System.getenv("GITHUB_WORKSPACE");
+  var WORK = java.lang.System.getenv("WKSP_PENSIONCALC");
   var absFile = (WORK ? WORK + "/" : "") + fileRel;
 
   // Quote the path to protect spaces
