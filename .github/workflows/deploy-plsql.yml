@@ -73,21 +73,23 @@ jobs:
       - name: Run PL/SQL scripts
         env:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_SERVICE:  ${{ secrets.DB_SERVICE }}
+          DB_SERVICE:  ${{ secrets.DB_SERVICE }}   # e.g., apxedev_tp
         run: |
-
           set -e
-          export TNS_ADMIN="$PWD/wallet"
+
+          # Point SQLcl at the wallet directory so it can read tnsnames.ora/sqlnet.ora
+          export TNS_ADMIN="$GITHUB_WORKSPACE/wallet"
+          echo "Using TNS_ADMIN=$TNS_ADMIN"
+
+          # Optional: show aliases found in the wallet (must include the value in DB_SERVICE)
           echo "TNS aliases found:"
           grep -E '^[A-Za-z0-9_-]+\s*=' "$TNS_ADMIN/tnsnames.ora" | awk -F= '{print $1}' | tr -d ' '
-          sql /nolog <<'EOF'
-          SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
-          SET CLOUDCONFIG wallet
-          SHOW TNS
+
+          # Run SQLcl and let the shell expand env variables (note: no quotes around EOF)
+          sql /nolog <<EOF
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           WHENEVER SQLERROR EXIT SQL.SQLCODE
-          CONNECT GITWORKFLOWTEST/${DB_PASSWORD}@${DB_SERVICE}
+          CONNECT GITWORKFLOWTEST/"$DB_PASSWORD"@$DB_SERVICE
           EXIT
           EOF
-          EXIT
-          EOF
+          ``
