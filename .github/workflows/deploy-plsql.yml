@@ -75,10 +75,11 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_SERVICE:  ${{ secrets.DB_SERVICE }}
         run: |
+
+          set -e
+          export TNS_ADMIN="$PWD/wallet"
           echo "TNS aliases found:"
           grep -E '^[A-Za-z0-9_-]+\s*=' "$TNS_ADMIN/tnsnames.ora" | awk -F= '{print $1}' | tr -d ' '
-          
-          set -e
           sql /nolog <<'EOF'
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           SET CLOUDCONFIG wallet
