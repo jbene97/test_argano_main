@@ -111,14 +111,14 @@ lines.forEach(function(line){
     try {
       ctx.write('Retrying without owner for ' + on + '\n');
       sqlcl.setStmt('spool "' + absFile + '"'); sqlcl.run();
-      sqlcl.setStmt("select dbms_metadata.get_ddl('" + ot.replace("'","''") + "','" + on.replace("'","''") + "') from dual"); sqlcl.run();
+      sqlcl.setStmt("select dbms_metadata.get_ddl('" + TARGET.replace("'","''") + "','" + on.replace("'","''") + "') from dual"); sqlcl.run();
       sqlcl.setStmt('spool off'); sqlcl.run();
       var p2 = Paths.get(absFile); if (Files.exists(p2) && Files.size(p2) > 0) saved = true;
     } catch(e){}
   }
 
   if (!saved) {
-    ctx.write('Warning: failed to extract DDL for ' + ot + '.' + on + '\n');
+    ctx.write('Warning: failed to extract DDL for ' + TARGET + '.' + on + '\n');
   } else {
     ctx.write('Saved: ' + absFile + '\n');
     count++;
