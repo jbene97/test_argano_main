@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "PK_XXPEN_HR_FINAL_AVG_EAR_TBL" of type INDEX not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 

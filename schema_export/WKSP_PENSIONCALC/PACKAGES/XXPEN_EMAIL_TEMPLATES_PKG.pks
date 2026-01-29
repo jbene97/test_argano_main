@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "XXPEN_EMAIL_TEMPLATES_PKG" of type PACKAGE not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 

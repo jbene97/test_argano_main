@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "XXPEN_MN_JOB_HISTORY_12012025_TO_12262025" of type TABLE not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 

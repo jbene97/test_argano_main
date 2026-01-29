@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "XXPEN_HR_PAYMENT_INFO_TBL_T" of type TRIGGER not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 

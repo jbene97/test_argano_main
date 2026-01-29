@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "ADMIN_TABLES_VIEW" of type VIEW not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 

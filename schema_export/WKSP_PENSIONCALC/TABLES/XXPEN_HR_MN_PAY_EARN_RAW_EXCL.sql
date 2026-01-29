@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "XXPEN_HR_MN_PAY_EARN_RAW_EXCL" of type TABLE not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 

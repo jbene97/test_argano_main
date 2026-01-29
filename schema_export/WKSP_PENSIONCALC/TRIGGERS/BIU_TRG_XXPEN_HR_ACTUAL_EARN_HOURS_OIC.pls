@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "BIU_TRG_XXPEN_HR_ACTUAL_EARN_HOURS_OIC" of type TRIGGER not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 

@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "XXPEN_HR_JDE_RAW_DATA_TBL_BKP_09122025" of type TABLE not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 

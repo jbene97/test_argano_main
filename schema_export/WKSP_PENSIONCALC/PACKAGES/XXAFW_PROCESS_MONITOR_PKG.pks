@@ -1,5 +1,3 @@
---ERROR:ORA-31603: object "XXAFW_PROCESS_MONITOR_PKG" of type PACKAGE not found in schema "WKSP_PENSIONCALC"
-
 
 PL/SQL procedure successfully completed.
 
