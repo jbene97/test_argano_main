@@ -138,13 +138,30 @@ lines.forEach(function(line){
   plsql += "END;\n/";
 
   ctx.write('Spooling DDL for ' + TARGET + '.' + on + ' -> ' + absFile + '\n');
-  // disable echo so the PL/SQL block itself isn't written into the spool
+  // disable echo and ensure SERVEROUTPUT is ON before starting the spool so
+  // DBMS_OUTPUT lines are emitted into the spool file (SQLcl captures serveroutput)
   try { sqlcl.setStmt('set echo off'); sqlcl.run(); } catch(e) {}
+  try { sqlcl.setStmt('set serveroutput on size 1000000'); sqlcl.run(); } catch(e) {}
   sqlcl.setStmt(spoolOn); sqlcl.run();
   sqlcl.setStmt(plsql); sqlcl.run();
   sqlcl.setStmt(spoolOff); sqlcl.run();
   // restore echo
   try { sqlcl.setStmt('set echo on'); sqlcl.run(); } catch(e) {}
+
+  // Post-process the spooled file to remove any echoed PL/SQL block or completion messages
+  try {
+    var pFile = Paths.get(absFile);
+    if (Files.exists(pFile)) {
+      var raw = new java.lang.String(Files.readAllBytes(pFile), java.nio.charset.StandardCharsets.UTF_8);
+      // remove leading PL/SQL block if it was echoed (from "DECLARE" through the first line that contains just "/")
+      raw = raw.replace(/(?s)^\s*DECLARE[\s\S]*?\n\/\s*\n/, '');
+      // remove the "PL/SQL procedure successfully completed." footer
+      //raw = raw.replace(/PL\\/SQL procedure successfully completed\./g, '');
+      // trim surrounding whitespace
+      raw = raw.replace(/^\s+|\s+$/g, '\n');
+      Files.write(pFile, new java.lang.String(raw).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+  } catch(e) {}
 
   // verify
   var saved = false;
