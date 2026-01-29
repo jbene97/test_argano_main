@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "BIU_XXPEN_HR_SUMMER_MONTHS_FLAT_TBL" of type TRIGGER not found in schema "WKSP_PENSIONCALC"

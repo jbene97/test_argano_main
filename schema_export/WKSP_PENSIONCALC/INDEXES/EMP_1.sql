@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "EMP_1" of type INDEX not found in schema "WKSP_PENSIONCALC"

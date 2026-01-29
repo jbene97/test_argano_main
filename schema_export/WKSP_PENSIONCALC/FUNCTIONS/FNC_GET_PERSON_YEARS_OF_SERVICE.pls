@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "FNC_GET_PERSON_YEARS_OF_SERVICE" of type FUNCTION not found in schema "WKSP_PENSIONCALC"

@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "OLD_EMPID_TO_NEW_EMPID_XREF_28JAN" of type TABLE not found in schema "WKSP_PENSIONCALC"

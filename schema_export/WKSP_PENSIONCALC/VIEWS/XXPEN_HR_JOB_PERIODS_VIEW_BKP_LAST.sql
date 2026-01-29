@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXPEN_HR_JOB_PERIODS_VIEW_BKP_LAST" of type VIEW not found in schema "WKSP_PENSIONCALC"

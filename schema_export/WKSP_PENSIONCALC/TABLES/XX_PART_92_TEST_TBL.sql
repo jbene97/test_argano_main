@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XX_PART_92_TEST_TBL" of type TABLE not found in schema "WKSP_PENSIONCALC"

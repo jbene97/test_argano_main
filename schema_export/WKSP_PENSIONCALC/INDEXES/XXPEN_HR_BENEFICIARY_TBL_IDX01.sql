@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXPEN_HR_BENEFICIARY_TBL_IDX01" of type INDEX not found in schema "WKSP_PENSIONCALC"

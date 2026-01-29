@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXPEN_HR_ACTUAL_EARN_HOURS_TBL_N3" of type INDEX not found in schema "WKSP_PENSIONCALC"

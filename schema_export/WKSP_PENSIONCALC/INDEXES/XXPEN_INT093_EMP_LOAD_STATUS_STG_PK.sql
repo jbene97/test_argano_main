@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXPEN_INT093_EMP_LOAD_STATUS_STG_PK" of type INDEX not found in schema "WKSP_PENSIONCALC"

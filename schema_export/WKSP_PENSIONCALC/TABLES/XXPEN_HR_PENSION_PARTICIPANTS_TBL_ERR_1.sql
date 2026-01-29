@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXPEN_HR_PENSION_PARTICIPANTS_TBL_ERR$1" of type TABLE not found in schema "WKSP_PENSIONCALC"
