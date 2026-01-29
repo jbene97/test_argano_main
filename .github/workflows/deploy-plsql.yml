@@ -89,6 +89,7 @@ jobs:
           SET ECHO ON FEEDBACK ON SERVEROUTPUT ON
           WHENEVER SQLERROR EXIT SQL.SQLCODE
           CONNECT GITWORKFLOWTEST/"$DB_PASSWORD"@$DB_SERVICE
+          alter session set current_schema=WKSP_PENSIONCALC;
           @DEPLOY/deploy_scripts.sql
           EXIT
           EOF
