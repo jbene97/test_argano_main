@@ -154,7 +154,7 @@ lines.forEach(function(line){
     if (Files.exists(pFile)) {
       var raw = new java.lang.String(Files.readAllBytes(pFile), java.nio.charset.StandardCharsets.UTF_8);
       // remove leading PL/SQL block if it was echoed (from "DECLARE" through the first line that contains just "/")
-      raw = raw.replace(/(?s)^\s*DECLARE[\s\S]*?\n\/\s*\n/, '');
+      //raw = raw.replace(/(?s)^\s*DECLARE[\s\S]*?\n\/\s*\n/, '');
       // remove the "PL/SQL procedure successfully completed." footer
       //raw = raw.replace(/PL\\/SQL procedure successfully completed\./g, '');
       // trim surrounding whitespace
