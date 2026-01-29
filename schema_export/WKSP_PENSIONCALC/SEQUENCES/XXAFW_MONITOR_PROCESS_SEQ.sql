@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXAFW_MONITOR_PROCESS_SEQ" of type SEQUENCE not found in schema "WKSP_PENSIONCALC"

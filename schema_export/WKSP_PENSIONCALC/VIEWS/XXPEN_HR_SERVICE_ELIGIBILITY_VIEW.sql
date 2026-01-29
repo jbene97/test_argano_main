@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXPEN_HR_SERVICE_ELIGIBILITY_VIEW" of type VIEW not found in schema "WKSP_PENSIONCALC"

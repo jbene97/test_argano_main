@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXPEN_HR_PAY_DATA_SRINI_BKP_121825" of type TABLE not found in schema "WKSP_PENSIONCALC"

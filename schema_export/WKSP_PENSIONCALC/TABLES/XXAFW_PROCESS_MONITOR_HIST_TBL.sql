@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXAFW_PROCESS_MONITOR_HIST_TBL" of type TABLE not found in schema "WKSP_PENSIONCALC"

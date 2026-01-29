@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "TMP_MISSING_BEN_MAPPING_LOAD" of type TABLE not found in schema "WKSP_PENSIONCALC"

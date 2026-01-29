@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "BIU_XXPEN_HR_PROJECTED_SERVICE_TIME_LINES_TBL" of type TRIGGER not found in schema "WKSP_PENSIONCALC"

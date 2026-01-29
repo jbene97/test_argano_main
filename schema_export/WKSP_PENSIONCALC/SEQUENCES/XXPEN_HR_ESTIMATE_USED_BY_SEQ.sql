@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XXPEN_HR_ESTIMATE_USED_BY_SEQ" of type SEQUENCE not found in schema "WKSP_PENSIONCALC"

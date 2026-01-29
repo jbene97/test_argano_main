@@ -1,2 +1,1 @@
-
-PL/SQL procedure successfully completed.
+--ERROR:ORA-31603: object "XX_PAY_DUMMY" of type TABLE not found in schema "WKSP_PENSIONCALC"
