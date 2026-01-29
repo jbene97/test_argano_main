@@ -101,31 +101,71 @@ lines.forEach(function(line){
   var safeName = on.replace(/[^A-Za-z0-9_.-]/g, '_');
   var absFile = WORK + '/' + dirRel + '/' + safeName + MAP[ot].ext;
 
-  // export strategy: use ALL_SOURCE for PL/SQL objects, otherwise use SQLcl DDL
-  var PL_SQL_TYPES = {"FUNCTION":1,"PROCEDURE":1,"PACKAGE":1,"PACKAGE BODY":1,"TRIGGER":1,"TYPE":1,"TYPE BODY":1};
+  // spool a PL/SQL block that safely attempts GET_DDL and falls back to ALL_SOURCE
+  var spoolOn = 'spool "' + absFile + '"';
+  var spoolOff = 'spool off';
+
+  // escape single quotes for PL/SQL
   var ot_esc = ot.replace("'","''");
   var on_esc = on.replace("'","''");
 
-  ctx.write('Spooling DDL/source for ' + TARGET + '.' + on + ' -> ' + absFile + '\n');
+  var plsql = '';
+  plsql += "DECLARE\n";
+  plsql += "  l_ddl CLOB;\n";
+  plsql += "  l_pos INTEGER := 1;\n";
+  plsql += "  l_len INTEGER;\n";
+  plsql += "  l_chunk VARCHAR2(32767);\n";
+  plsql += "BEGIN\n";
+  plsql += "  BEGIN\n";
+  plsql += "    l_ddl := DBMS_METADATA.GET_DDL('" + ot_esc + "','" + on_esc + "','" + TARGET + "');\n";
+  plsql += "    IF l_ddl IS NOT NULL THEN\n";
+  plsql += "      l_len := DBMS_LOB.GETLENGTH(l_ddl);\n";
+  plsql += "      WHILE l_pos <= l_len LOOP\n";
+  plsql += "        l_chunk := DBMS_LOB.SUBSTR(l_ddl,32767,l_pos);\n";
+  plsql += "        DBMS_OUTPUT.PUT_LINE(l_chunk);\n";
+  plsql += "        l_pos := l_pos + 32767;\n";
+  plsql += "      END LOOP;\n";
+  plsql += "    ELSE\n";
+  plsql += "      -- No DDL returned; attempt to output source (for PL/SQL objects)\n";
+  plsql += "      FOR r IN (SELECT text FROM all_source WHERE owner='" + TARGET + "' AND name='" + on_esc + "' ORDER BY line) LOOP\n";
+  plsql += "        DBMS_OUTPUT.PUT_LINE(r.text);\n";
+  plsql += "      END LOOP;\n";
+  plsql += "    END IF;\n";
+  plsql += "  EXCEPTION WHEN OTHERS THEN\n";
+  plsql += "    DBMS_OUTPUT.PUT_LINE('--ERROR:'||SQLERRM);\n";
+  plsql += "    FOR r IN (SELECT text FROM all_source WHERE owner='" + TARGET + "' AND name='" + on_esc + "' ORDER BY line) LOOP\n";
+  plsql += "      DBMS_OUTPUT.PUT_LINE(r.text);\n";
+  plsql += "    END LOOP;\n";
+  plsql += "  END;\n";
+  plsql += "END;\n/";
+
+  ctx.write('Spooling DDL for ' + TARGET + '.' + on + ' -> ' + absFile + '\n');
+  // disable echo and ensure SERVEROUTPUT is ON before starting the spool so
+  // DBMS_OUTPUT lines are emitted into the spool file (SQLcl captures serveroutput)
   try { sqlcl.setStmt('set echo off'); sqlcl.run(); } catch(e) {}
-  if (PL_SQL_TYPES[ot]) {
-    // PL/SQL: spool ALL_SOURCE (owner + name)
-    try {
-      sqlcl.setStmt('set serveroutput off'); sqlcl.run();
-    } catch(e) {}
-    sqlcl.setStmt(spoolOn); sqlcl.run();
-    sqlcl.setStmt("select text from all_source where owner='" + TARGET + "' and name='" + on_esc + "' order by line"); sqlcl.run();
-    sqlcl.setStmt(spoolOff); sqlcl.run();
-  } else {
-    // Non-PL/SQL: attempt SQLcl 'ddl' command
-    var cmd = 'ddl ' + objRef + ' ' + ot + ' save "' + absFile + '"';
-    try {
-      sqlcl.setStmt(cmd); sqlcl.run();
-    } catch(e) {
-      // fall through; we'll verify file existence below
-    }
-  }
+  try { sqlcl.setStmt('set serveroutput on size 1000000'); sqlcl.run(); } catch(e) {}
+  sqlcl.setStmt(spoolOn); sqlcl.run();
+  sqlcl.setStmt(plsql); sqlcl.run();
+  sqlcl.setStmt(spoolOff); sqlcl.run();
+  // restore echo
   try { sqlcl.setStmt('set echo on'); sqlcl.run(); } catch(e) {}
+
+  // Post-process the spooled file to remove any echoed PL/SQL block or completion messages
+  try {
+    var pFile = Paths.get(absFile);
+    if (Files.exists(pFile)) {
+      var raw = new java.lang.String(Files.readAllBytes(pFile), java.nio.charset.StandardCharsets.UTF_8);
+      // remove leading PL/SQL block if it was echoed (from "DECLARE" through the first line that contains just "/")
+      raw = raw.replace(/^\s*DECLARE[\s\S]*?\n\/\s*\n/, '');
+      // remove the "PL/SQL procedure successfully completed." footer
+      raw = raw.replace(/PL\/SQL procedure successfully completed\./g, '');
+      // normalize CR, collapse excessive blank lines, trim surrounding whitespace
+      raw = raw.replace(/\r/g, '');
+      raw = raw.replace(/\n{3,}/g, '\n\n');
+      raw = raw.replace(/^\s+|\s+$/g, '\n');
+      Files.write(pFile, new java.lang.String(raw).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+  } catch(e) {}
 
   // verify
   var saved = false;
