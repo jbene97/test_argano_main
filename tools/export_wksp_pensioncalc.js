@@ -117,7 +117,7 @@ lines.forEach(function(line){
   plsql += "  l_chunk VARCHAR2(32767);\n";
   plsql += "BEGIN\n";
   plsql += "  BEGIN\n";
-  plsql += "    l_ddl := DBMS_METADATA.GET_DDL('" + ot_esc + "','" + on_esc + "','" + TARGET + "');\n";
+  plsql += "   /* l_ddl := DBMS_METADATA.GET_DDL('" + ot_esc + "','" + on_esc + "','" + TARGET + "');\n";
   plsql += "    IF l_ddl IS NOT NULL THEN\n";
   plsql += "      l_len := DBMS_LOB.GETLENGTH(l_ddl);\n";
   plsql += "      WHILE l_pos <= l_len LOOP\n";
@@ -125,7 +125,10 @@ lines.forEach(function(line){
   plsql += "        DBMS_OUTPUT.PUT_LINE(l_chunk);\n";
   plsql += "        l_pos := l_pos + 32767;\n";
   plsql += "      END LOOP;\n";
-  plsql += "    END IF;\n";
+  plsql += "    END IF;*/\n";
+  plsql += "    FOR r IN (SELECT text FROM all_source WHERE owner='" + TARGET + "' AND name='" + on_esc + "' ORDER BY line) LOOP\n";
+  plsql += "      DBMS_OUTPUT.PUT_LINE(r.text);\n";
+  plsql += "    END LOOP;\n";
   plsql += "  EXCEPTION WHEN OTHERS THEN\n";
   plsql += "    DBMS_OUTPUT.PUT_LINE('--ERROR:'||SQLERRM);\n";
   plsql += "    FOR r IN (SELECT text FROM all_source WHERE owner='" + TARGET + "' AND name='" + on_esc + "' ORDER BY line) LOOP\n";

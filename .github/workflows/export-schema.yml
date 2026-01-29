@@ -111,6 +111,7 @@ jobs:
           git add schema_export || true
           # Only commit if there are changes
           if ! git diff --cached --quiet; then
+            git pull
             git commit -m "schema export: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             git push
           else
